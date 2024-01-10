@@ -1,0 +1,3 @@
+
+class UnexpectedError(Exception):
+    raise ()
