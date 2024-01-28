@@ -1,11 +1,12 @@
 import asyncio
+from urllib.parse import urljoin
 import aiohttp
 from asyncio import gather
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from typing import List
 
 from crawler.cache.cache import LocalCache
-from crawler.utils import fix_url
+from crawler.utils import get_url_domain, get_url_scheme, match_scheme_and_domain_like_main_url
 
 
 class WebCrawler:
@@ -47,36 +48,64 @@ class WebCrawler:
         await gather(*awaitables)
 
     async def _extract_links_from_page(self, url: str) -> List[str]:
-        cached_links = self.local_cache.get_url_links(url)
-        if cached_links:
-            return cached_links
-
         retry = 0
         while retry < self.retries:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.head(url, timeout=1) as resp:
-                        if 'Content-Type' in resp.headers and self.html_content_type_only not in resp.headers['Content-Type']:
-                            return
-                    async with session.get(url, timeout=1) as resp:
-                        soup = BeautifulSoup(await resp.text(errors='ignore'), 'html.parser')
-                        for element in soup.find_all('script'):
-                            element.decompose()
-                break
+                if self._check_if_page_is_html(url):    
+                    links = self._get_links_from_page(url) 
+                    return self._add_domain_to_relative_urls(url, links)
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 retry += 1
                 self.logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
         if retry == self.retries:
             self.logger.error(f'Got connection error while trying to get {url}')
             return
-        elements = soup.find_all('a', {'href': True})
-        links = [element.attrs['href'] for element in elements]
-        return await self._add_domain_to_relative_urls(url, links)
 
-    async def _add_domain_to_relative_urls(self, main_url: str, urls: List[str]) -> List[str]:
+    def _add_domain_to_relative_urls(self, main_url: str, urls: List[str]) -> List[str]:
         updated_urls = []
         for url in urls:
-            fixed_url = fix_url(url, main_url)
+            fixed_url = self._match_scheme_and_domain_like_main_url(url, main_url)
             if fixed_url:
                 updated_urls.append(fixed_url)
         return updated_urls
+
+    async def _check_if_page_is_html(self, url: str) -> bool:
+        async with aiohttp.ClientSession() as session:
+            async with session.head(url, timeout=1) as resp:
+                if 'Content-Type' in resp.headers and self.html_content_type_only not in resp.headers['Content-Type']:
+                    return True
+        return False
+
+    async def _get_links_from_page(self, url: str) -> List[str]:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=1) as resp:
+                soup = BeautifulSoup(await resp.text(errors='ignore'), 'html.parser')
+                self._remove_unwanted_elements(soup)
+                elements = soup.find_all('a', {'href': True})
+                links = [element.attrs['href'] for element in elements]
+                return links
+
+    def _remove_unwanted_elements(self, soup: Tag) -> None:
+        for element in soup.find_all('script'):
+            element.decompose()
+
+    def _match_scheme_and_domain_like_main_url(self, url: str, main_url: str) -> str:
+        url = self._add_scheme_to_url(url, main_url)
+        url = self._add_doamin_to_url(url, main_url)
+        return url
+
+    @staticmethod
+    def _add_scheme_to_url(url: str, main_url: str) -> str:
+        scheme = get_url_scheme(url)
+        if not scheme:
+            url = urljoin(main_url, url)
+        elif scheme not in ['https', 'http']:
+            return None
+        return url
+
+    @staticmethod
+    def _add_doamin_to_url(url: str, main_url: str) -> str:
+        domain = get_url_domain(url)
+        if domain == '':
+            url = urljoin(main_url, url)
+        return url

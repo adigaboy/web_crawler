@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from crawler.cache.url_link_ratio import ScrapedDataType
+from crawler.cache.scraped_data_type import ScrapedDataType
 
 
 class LocalCache:

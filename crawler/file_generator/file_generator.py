@@ -1,7 +1,7 @@
 import csv
 from typing import List
 from crawler.cache.cache import LocalCache
-from crawler.cache.url_link_ratio import ScrapedDataType
+from crawler.cache.scraped_data_type import ScrapedDataType
 
 
 class FileResultGenerator:
