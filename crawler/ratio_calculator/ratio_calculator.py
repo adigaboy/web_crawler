@@ -1,6 +1,8 @@
-from typing import List
+from queue import Queue
+from typing import Any, List
 
 from crawler.cache.cache import LocalCache
+from crawler.cache.scraped_data_type import ScrapedDataType
 from crawler.utils import get_url_domain
 
 
@@ -10,17 +12,21 @@ class RatioCalculator:
     according to the following logic:
     The ratio of the same domain links contained in the page, ranging from 0 to 1.
     """
-    def __init__(self, local_cache: LocalCache) -> None:
-        self.local_cache = local_cache
+    def __init__(self, ratio_calc_queue: Queue) -> None:
+        self.ratio_calc_queue = ratio_calc_queue
+        self.calculated_ratios = []
 
-    def calculate_ratios(self, urls: List[str]):
-        for url in urls:
-            url_links = self.local_cache.get_url_links(url)
-            main_domain = get_url_domain(url)
+    async def calculate_ratios(self):
+        while not self.ratio_calc_queue.empty():
+            scraped_data: ScrapedDataType = await self.ratio_calc_queue.get()
+            main_domain = get_url_domain(scraped_data.url)
             count = 0
-            for link in url_links:
+            for link in scraped_data.links:
                 url_domain = get_url_domain(link)
                 if url_domain == main_domain:
                     count += 1
-            ratio = count / len(url_links)
-            self.local_cache.set_url_ratio(url, round(ratio, 2))
+            ratio = count / len(scraped_data.links)
+            self.calculated_ratios.append([scraped_data.url, scraped_data.depth, round(ratio, 2)])
+
+    def get_calculated_ratios(self) -> List[List[Any]]:
+        return self.calculated_ratios
