@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, Tag
 from typing import List
 
 from crawler.cache.cache import LocalCache
-from crawler.utils import get_url_domain, get_url_scheme, match_scheme_and_domain_like_main_url
+from crawler.utils import get_url_domain, get_url_scheme
 
 
 class WebCrawler:
@@ -51,9 +51,10 @@ class WebCrawler:
         retry = 0
         while retry < self.retries:
             try:
-                if self._check_if_page_is_html(url):    
-                    links = self._get_links_from_page(url) 
+                if await self._check_if_page_is_html(url):    
+                    links = await self._get_links_from_page(url) 
                     return self._add_domain_to_relative_urls(url, links)
+                break
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 retry += 1
                 self.logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
@@ -72,7 +73,7 @@ class WebCrawler:
     async def _check_if_page_is_html(self, url: str) -> bool:
         async with aiohttp.ClientSession() as session:
             async with session.head(url, timeout=1) as resp:
-                if 'Content-Type' in resp.headers and self.html_content_type_only not in resp.headers['Content-Type']:
+                if 'Content-Type' in resp.headers and self.html_content_type_only in resp.headers['Content-Type']:
                     return True
         return False
 

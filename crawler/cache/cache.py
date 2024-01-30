@@ -35,12 +35,9 @@ class LocalCache:
 
     def set_url_links(self, url: str, links: List[str], depth: int) -> None:
         if url not in self.data:
-            self.data[url] = ScrapedDataType(url, links=links, depth=depth)
+            self.data[url] = ScrapedDataType(links, 0, depth)
         else:
             self.data[url].links = links
 
     def set_url_ratio(self, url: str, ratio: int) -> None:
-        if url not in self.data:
-            self.data[url]['ratio'] = ScrapedDataType(url, ratio=ratio)
-        else:
-            self.data[url].ratio = ratio
+        self.data[url].ratio = ratio

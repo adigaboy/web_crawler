@@ -13,4 +13,4 @@ class ScrapedDataType:
     depth: int
 
     def to_list(self) -> List[Any]:
-        return [self.url, self.depth, self.ratio]
+        return [self.depth, self.ratio]
