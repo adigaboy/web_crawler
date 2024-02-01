@@ -1,110 +1,98 @@
 import asyncio
-from asyncio import events
 import logging
 from urllib.parse import urljoin
 import aiohttp
-from asyncio import gather
 from bs4 import BeautifulSoup, Tag
-from typing import Any, List
+from typing import Any, Dict, List
 
-from crawler.cache.cache import LocalCache
-from crawler.cache.scraped_data_type import ScrapedDataType
+from crawler.scraped_data_type import ScrapedDataType
 from crawler.utils import get_url_domain, get_url_scheme
 
 logger = logging.getLogger()
-html_content_type_only = 'text/html'
 
 
 class WebCrawlerWorker:
     """
-    This module handles the main logic of crawling pages and extracting links.
+    This module crawls the links in the main url, extarct them and
+    calculates the ratio of them.
     """
     crawled_urls: set
     max_depth: int
     retries = 2
 
-    def __init__(
-            self,
-            ratio_calc_queue: asyncio.Queue,
-            logger
-        ) -> None:
-        self.ratio_calc_queue = ratio_calc_queue
-        self.logger = logger
+    def __init__(self, logger) -> None:
+        self.results = []
+        self.crawling_queue = asyncio.Queue()
         self.crawled_urls = set()
+        self.logger = logger
 
     async def start_crawling(
             self,
             main_url: str,
             max_depth: int
-        ):
-        results = []
-        tasks = []
-        crawling_queue = asyncio.Queue()
-        await crawling_queue.put((main_url, 1))
-        for _ in range(25):
-            task = asyncio.create_task(worker(
-                crawling_queue,
-                self.ratio_calc_queue,
-                results,
-                self.crawled_urls,
+        ) -> List[ScrapedDataType]:
+        crawler_tasks = []
+        await self.crawling_queue.put((main_url, 1))
+        for _ in range(150):
+            task = asyncio.create_task(self._wroker(
                 max_depth
             ))
-            tasks.append(task)
+            crawler_tasks.append(task)
 
-        await crawling_queue.join()  # Wait for all tasks in the queue to be processed
+        await self.crawling_queue.join()  # Wait for all tasks in the queue to be processed
 
-        for task in tasks:
+        for task in crawler_tasks:
             task.cancel()  # Stop the tasks
 
-        return list(set(results))
+        return self.results
 
-async def worker(queue: asyncio.Queue, ratio_calc_queue, results, visited, max_depth):
-    while True:
-        current_url, current_depth = await queue.get()
-        if current_depth > max_depth or current_url in visited:
-            queue.task_done()
-            continue
+    async def _wroker(self, max_depth: int) -> None:
+        while True:
+            current_url, current_depth = await self.crawling_queue.get()
+            if current_url in self.crawled_urls:
+                self.crawling_queue.task_done()
+                continue
+            self.crawled_urls.add(current_url)
 
-        visited.add(current_url)
-        links = await _extract_links_from_page(current_url, 3)
-        if not links:
-            queue.task_done()
-            continue
-        results.append((current_url, current_depth))
+            links = await self._extract_links_from_page(current_url)
+            if not links:
+                self.crawling_queue.task_done()
+                continue
+            ratio = await _calculate_ratios(current_url, links)
+            self.results.append(ScrapedDataType(current_url, current_depth, ratio))
 
-        for link in links:
-            await queue.put((link, current_depth + 1))
-        await ratio_calc_queue.put(ScrapedDataType(current_url, links, current_depth))
+            if current_depth + 1 <= max_depth:
+                for link in links:
+                    await self.crawling_queue.put((link, current_depth + 1))
 
-        queue.task_done()
+            self.crawling_queue.task_done()
 
-async def _extract_links_from_page(url: str, retries: int) -> List[str]:
-    retry = 0
-    while retry < retries:
-        try:
-            if await _check_if_page_is_html(url):    
-                links = await _get_links_from_page(url) 
-                return _add_domain_to_relative_urls(url, links)
-            break
-        except (aiohttp.ClientError, asyncio.TimeoutError):
-            retry += 1
-            logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
-    if retry == retries:
-        logger.error(f'Got connection error while trying to get {url}')
-        return
+    async def _extract_links_from_page(self, url: str) -> List[str]:
+        retry = 0
+        while retry < self.retries:
+            try:
+                if await _check_if_page_is_html(url):    
+                    links = await _get_links_from_page(url) 
+                    return _get_absolute_urls(url, links)
+                break
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                retry += 1
+                logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
+        if retry == self.retries:
+            logger.error(f'Got connection error while trying to get {url}')
 
-def _add_domain_to_relative_urls(main_url: str, urls: List[str]) -> List[str]:
+def _get_absolute_urls(main_url: str, urls: List[str]) -> List[str]:
     updated_urls = []
     for url in urls:
-        fixed_url = _match_scheme_and_domain_like_main_url(url, main_url)
-        if fixed_url:
-            updated_urls.append(fixed_url)
+        absolute_url = _match_scheme_and_domain_like_main_url(url, main_url)
+        if absolute_url:
+            updated_urls.append(absolute_url)
     return updated_urls
 
 async def _check_if_page_is_html(url: str) -> bool:
     async with aiohttp.ClientSession() as session:
         async with session.head(url, timeout=1) as resp:
-            if 'Content-Type' in resp.headers and html_content_type_only in resp.headers['Content-Type']:
+            if 'Content-Type' in resp.headers and 'text/html' in resp.headers['Content-Type']:
                 return True
     return False
 
@@ -139,3 +127,13 @@ def _add_doamin_to_url(url: str, main_url: str) -> str:
     if domain == '':
         url = urljoin(main_url, url)
     return url
+
+async def _calculate_ratios(url: str, links: List[str]):
+    main_domain = get_url_domain(url)
+    count = 0
+    for link in links:
+        url_domain = get_url_domain(link)
+        if url_domain == main_domain:
+            count += 1
+    ratio = count / len(links)
+    return round(ratio, 2)

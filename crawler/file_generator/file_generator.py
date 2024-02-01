@@ -1,7 +1,7 @@
 import csv
-from typing import Any, List
-from crawler.cache.cache import LocalCache
-from crawler.cache.scraped_data_type import ScrapedDataType
+from typing import List
+
+from crawler.scraped_data_type import ScrapedDataType
 
 
 class FileResultGenerator:
@@ -12,11 +12,11 @@ class FileResultGenerator:
         self.filename = 'result.tsv'
         self.headers = ['url', 'depth', 'ratio']
 
-    def generate_file_result(self, calculated_ratios: List[List[Any]]):
-        calculated_ratios.sort(key=lambda data: data[1])
+    def generate_file_result(self, calculated_ratios: List[ScrapedDataType]):
+        calculated_ratios.sort(key=lambda data: data.depth)
         with open(self.filename, mode='w', newline='') as result_file:
             csv_writer = csv.writer(result_file, delimiter='\t')
             csv_writer.writerow(self.headers)
             for data in calculated_ratios:
-                csv_writer.writerow(data)
+                csv_writer.writerow(data.to_list())
         return self.filename

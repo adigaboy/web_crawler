@@ -1,12 +1,8 @@
-import asyncio
 from ssl import SSLError
 import logging
 import requests
-from queue import Empty, Queue
 
-from crawler.cache.cache import LocalCache
 from crawler.file_generator.file_generator import FileResultGenerator
-from crawler.ratio_calculator.ratio_calculator import RatioCalculator
 from crawler.utils import get_url_scheme
 from crawler.web_crawler.web_crawler import WebCrawlerWorker
 
@@ -15,22 +11,21 @@ class CrawlerCLI:
     def __init__(self) -> None:
         logging.basicConfig(format='%(asctime)s-%(levelname)s:%(message)s', level=logging.INFO, datefmt='%H:%M:%S')
         self.logger = logging.getLogger('Web Crawler')
-        ratio_calc_queue = asyncio.Queue()
-        self.web_crawler = WebCrawlerWorker(ratio_calc_queue, self.logger)
-        self.ratio_calculator = RatioCalculator(ratio_calc_queue)
+        self.web_crawler = WebCrawlerWorker(self.logger)
         self.file_response_generator = FileResultGenerator()
 
     async def run(self, url: str, depth: str):
-        url, depth = self.validate_input(url, depth)
+        try:
+            url, depth = self._validate_input(url, depth)
+        except Exception as err:
+            print(f"{bcolors.FAIL}Error: {str(err)}{bcolors.ENDC}")
+            return
         self.logger.info(f'Starting crawling')
-        await self.web_crawler.start_crawling(url, depth)
-        self.logger.info(f'Starting ratio calculation')
-        await self.ratio_calculator.calculate_ratios()
-        self.logger.info(f'Writing to file')
-        output_filename = self.file_response_generator.generate_file_result(self.ratio_calculator.get_calculated_ratios())
-        self.logger.info(f'Done crawling {url}, results are in {output_filename} file')
+        results = await self.web_crawler.start_crawling(url, depth)
+        output_filename = self.file_response_generator.generate_file_result(results)
+        self.logger.info(f'{bcolors.OKGREEN}Done crawling {url}, results are in {output_filename} file{bcolors.ENDC}')
 
-    def validate_input(self, url: str, depth: str) -> None:
+    def _validate_input(self, url: str, depth: str) -> None:
         try:
             depth = int(depth)
         except ValueError:
@@ -44,6 +39,19 @@ class CrawlerCLI:
                 except SSLError:
                     resp = requests.head(f'https://{url}', timeout=1)
                     url = resp.url
-        except ConnectionError:
+            resp = requests.head(url, timeout=1)
+            url = resp.url
+        except requests.exceptions.ConnectionError:
             raise Exception(f'Url input {url} does not exists.')
         return url, depth
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
