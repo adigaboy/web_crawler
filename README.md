@@ -1,27 +1,18 @@
 # Web Crawler CLI
 
 ## About
-The tool is design as a CLI tool which crawls the given URL and calculates the url ratio in the page.
+The tool is designed as a CLI tool which crawls the given URL and calculates the url ratio in the page.
 Once a URL crawling process is done a file with the results is created and the program ends.
 
 ## System Design
-The tool is made up of 3 components:
+The tool is made up of 2 components:
 ### WebCrawler
-The module is in charge of handling the in page links extraction from the URL.
-The main logic is written in recursion(OMG) and recursion depth is dependent on the wanted depth.
-Main functionality is written in async in order speed up the web page fetches as much as possible.
-
-### RatioCalculator
-This module is in charge of calculating the URL ratio.
+The module is in charge of handling the in page links extraction from the URL and calculating the ratio.
+The main logic is written using asyncio Queue to handle all URLs to crawl through.
+Main functionality is written in async in order speed up the web page fetches and avoid blocking.
 
 ### FileResultGenerator
-In charge of writing the results of WebCrawler combined with RatioCalculator into a TSV formatted file.
-
-All components use the LocalCache module.
-
-Other components:
-### LocalCache
-This module is in charge of managing the cache of the tool in a key value database.
+In charge of writing the results of WebCrawler into a TSV formatted file.
 
 # Technical Details
 ### Python version
