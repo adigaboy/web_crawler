@@ -1,12 +1,11 @@
 import asyncio
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 from typing import Any, Dict, List
 
 from crawler.scraped_data_type import ScrapedDataType
-from crawler.utils import get_url_domain, get_url_scheme
 
 logger = logging.getLogger()
 
@@ -101,13 +100,15 @@ async def _get_links_from_page(url: str) -> List[str]:
         async with session.get(url, timeout=1) as resp:
             soup = BeautifulSoup(await resp.text(errors='ignore'), 'html.parser')
             _remove_unwanted_elements(soup)
-            elements = soup.find_all('a', {'href': True})
-            links = [element.attrs['href'] for element in elements]
-            return links
+            return _extract_links_from_soup(soup)
 
 def _remove_unwanted_elements(soup: Tag) -> None:
     for element in soup.find_all('script'):
         element.decompose()
+
+def _extract_links_from_soup(soup: Tag) -> None:
+    elements = soup.find_all('a', {'href': True})
+    return [element.attrs['href'] for element in elements]
 
 def _match_scheme_and_domain_like_main_url(url: str, main_url: str) -> str:
     url = _add_scheme_to_url(url, main_url)
@@ -115,7 +116,7 @@ def _match_scheme_and_domain_like_main_url(url: str, main_url: str) -> str:
     return url
 
 def _add_scheme_to_url(url: str, main_url: str) -> str:
-    scheme = get_url_scheme(url)
+    scheme = urlparse(url).scheme
     if not scheme:
         url = urljoin(main_url, url)
     elif scheme not in ['https', 'http']:
@@ -123,16 +124,16 @@ def _add_scheme_to_url(url: str, main_url: str) -> str:
     return url
 
 def _add_doamin_to_url(url: str, main_url: str) -> str:
-    domain = get_url_domain(url)
+    domain = urlparse(url).netloc
     if domain == '':
         url = urljoin(main_url, url)
     return url
 
 async def _calculate_ratios(url: str, links: List[str]):
-    main_domain = get_url_domain(url)
+    main_domain = urlparse(url).netloc
     count = 0
     for link in links:
-        url_domain = get_url_domain(link)
+        url_domain = urlparse(url).netloc
         if url_domain == main_domain:
             count += 1
     ratio = count / len(links)

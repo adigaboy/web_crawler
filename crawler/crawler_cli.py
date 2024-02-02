@@ -1,9 +1,10 @@
 from ssl import SSLError
 import logging
+from urllib.parse import urlparse
 import requests
+from crawler.exceptions import InvalidInputError
 
 from crawler.file_generator.file_generator import FileResultGenerator
-from crawler.utils import get_url_scheme
 from crawler.web_crawler.web_crawler import WebCrawlerWorker
 
 
@@ -17,7 +18,7 @@ class CrawlerCLI:
     async def run(self, url: str, depth: str):
         try:
             url, depth = self._validate_input(url, depth)
-        except Exception as err:
+        except InvalidInputError as err:
             print(f"{bcolors.FAIL}Error: {str(err)}{bcolors.ENDC}")
             return
         self.logger.info(f'Starting crawling')
@@ -29,8 +30,8 @@ class CrawlerCLI:
         try:
             depth = int(depth)
         except ValueError:
-            raise Exception(f'Depth input {depth} must be of type integer')
-        url_scheme = get_url_scheme(url)
+            raise InvalidInputError(f'Depth input {depth} must be of type integer')
+        url_scheme = urlparse(url).scheme
         try:
             if not url_scheme:
                 try:
@@ -42,7 +43,7 @@ class CrawlerCLI:
             resp = requests.head(url, timeout=1)
             url = resp.url
         except requests.exceptions.ConnectionError:
-            raise Exception(f'Url input {url} does not exists.')
+            raise InvalidInputError(f'Url input {url} does not exists.')
         return url, depth
 
 class bcolors:
