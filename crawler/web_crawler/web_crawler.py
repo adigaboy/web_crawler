@@ -1,13 +1,10 @@
 import asyncio
-import logging
 from urllib.parse import urljoin, urlparse
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 from typing import Any, Dict, List
 
 from crawler.scraped_data_type import ScrapedDataType
-
-logger = logging.getLogger()
 
 
 class WebCrawlerWorker:
@@ -76,9 +73,10 @@ class WebCrawlerWorker:
                 break
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 retry += 1
-                logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
+                self.logger.debug(f'Got connection error while trying to get {url}, on retry #{retry}')
         if retry == self.retries:
-            logger.error(f'Got connection error while trying to get {url}')
+            self.logger.error(f'Got connection error while trying to get {url}')
+        return []
 
 def _get_absolute_urls(main_url: str, urls: List[str]) -> List[str]:
     updated_urls = []
@@ -98,7 +96,8 @@ async def _check_if_page_is_html(url: str) -> bool:
 async def _get_links_from_page(url: str) -> List[str]:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=1) as resp:
-            soup = BeautifulSoup(await resp.text(errors='ignore'), 'html.parser')
+            text = await resp.text(errors='ignore')
+            soup = BeautifulSoup(text, 'html.parser')
             _remove_unwanted_elements(soup)
             return _extract_links_from_soup(soup)
 
@@ -111,30 +110,28 @@ def _extract_links_from_soup(soup: Tag) -> None:
     return [element.attrs['href'] for element in elements]
 
 def _match_scheme_and_domain_like_main_url(url: str, main_url: str) -> str:
-    url = _add_scheme_to_url(url, main_url)
-    url = _add_doamin_to_url(url, main_url)
+    scheme = urlparse(url).scheme
+    domain = urlparse(url).netloc
+    path = urlparse(url).path
+    if not domain and not scheme and not path.startswith('www.'):
+        url = _get_absolute_url_from_relative(url, main_url)
+    elif not scheme and path:
+        url = _add_scheme_to_url(url, main_url)
     return url
+
+def _get_absolute_url_from_relative(url: str, main_url: str) -> str:
+    return urljoin(main_url, url)
 
 def _add_scheme_to_url(url: str, main_url: str) -> str:
-    scheme = urlparse(url).scheme
-    if not scheme:
-        url = urljoin(main_url, url)
-    elif scheme not in ['https', 'http']:
-        return None
-    return url
-
-def _add_doamin_to_url(url: str, main_url: str) -> str:
-    domain = urlparse(url).netloc
-    if domain == '':
-        url = urljoin(main_url, url)
-    return url
+    main_url_scheme = urlparse(main_url).scheme
+    return f'{main_url_scheme}://{url}'
 
 async def _calculate_ratios(url: str, links: List[str]):
     main_domain = urlparse(url).netloc
     count = 0
     for link in links:
-        url_domain = urlparse(url).netloc
+        url_domain = urlparse(link).netloc
         if url_domain == main_domain:
             count += 1
-    ratio = count / len(links)
+    ratio = count / len(links) if links else 0
     return round(ratio, 2)
