@@ -19,7 +19,7 @@ class CrawlerCLI:
         try:
             url, depth = self._validate_input(url, depth)
         except InvalidInputError as err:
-            print(f"{bcolors.FAIL}Error: {str(err)}{bcolors.ENDC}")
+            self.logger.error(f"{bcolors.FAIL}Error: {str(err)}{bcolors.ENDC}")
             return
         self.logger.info(f'Starting crawling')
         results = await self.web_crawler.start_crawling(url, depth)
