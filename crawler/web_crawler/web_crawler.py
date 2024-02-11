@@ -28,11 +28,10 @@ class WebCrawlerWorker:
             max_depth: int
         ) -> List[ScrapedDataType]:
         crawler_tasks = []
+        self.max_depth = max_depth
         await self.crawling_queue.put((main_url, 1))
         for _ in range(150):
-            task = asyncio.create_task(self._wroker(
-                max_depth
-            ))
+            task = asyncio.create_task(self._wroker())
             crawler_tasks.append(task)
 
         await self.crawling_queue.join()  # Wait for all tasks in the queue to be processed
@@ -42,9 +41,13 @@ class WebCrawlerWorker:
 
         return self.results
 
-    async def _wroker(self, max_depth: int) -> None:
+    async def _wroker(self) -> None:
         while True:
             current_url, current_depth = await self.crawling_queue.get()
+            if current_depth > self.max_depth:
+                self.crawling_queue.task_done()
+                continue
+
             if current_url in self.crawled_urls:
                 self.crawling_queue.task_done()
                 continue
@@ -57,9 +60,8 @@ class WebCrawlerWorker:
             ratio = await _calculate_ratios(current_url, links)
             self.results.append(ScrapedDataType(current_url, current_depth, ratio))
 
-            if current_depth + 1 <= max_depth:
-                for link in links:
-                    await self.crawling_queue.put((link, current_depth + 1))
+            for link in links:
+                await self.crawling_queue.put((link, current_depth + 1))
 
             self.crawling_queue.task_done()
 
