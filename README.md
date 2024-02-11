@@ -38,8 +38,9 @@ Run the following command:
 ```
 
 And after that:
+``` bash
 pytest crawler\tests --cov-report term-missing --cov=crawler
-
+```
 
 # Author
 Nal Zazi
