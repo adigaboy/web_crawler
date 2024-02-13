@@ -20,11 +20,11 @@ In charge of writing the results of WebCrawler into a TSV formatted file.
 
 ### Virtual Environment Set Up
 ``` bash 
-    python3.11 -m venv <path_to_env>
-    source <path_to_env>/bin/activate # incase of linux OS
-    <path_to_env>\Scripts\Activate.ps1 # incase of windows OS
+python3.11 -m venv <path_to_env>
+source <path_to_env>/bin/activate # incase of linux OS
+<path_to_env>\Scripts\Activate.ps1 # incase of windows OS
 
-    python3.11 -m pip install -r requirements.txt
+python3.11 -m pip install -r requirements.txt
 ```
 
 # How To Use
@@ -34,12 +34,13 @@ python ./app.py <url> <depth>
 # How to Test
 Run the following command:
 ``` bash
-    python3.11 -m pip install -r dev_requirements.txt
+python3.11 -m pip install -r dev_requirements.txt
 ```
 
 And after that:
+``` bash
 pytest crawler\tests --cov-report term-missing --cov=crawler
-
+```
 
 # Author
 Nal Zazi
