@@ -36,4 +36,4 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest ./crawler/tests --cov-report term-missing --cov=crawler
+        pytest ./crawler/tests --cov-report term-missing --cov=crawler --cov-fail-under=80
