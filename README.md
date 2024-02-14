@@ -2,7 +2,7 @@
 
 ## About
 The tool is designed as a CLI tool which crawls the given URL and calculates the url ratio in the page.
-Once a URL crawling process is done a file with the results is created and the program ends.
+Once a URL crawling process is done(depth reached) a file with the results is created and the program ends.
 
 ## System Design
 The tool is made up of 2 components:
