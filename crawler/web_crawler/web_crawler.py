@@ -15,6 +15,7 @@ class WebCrawlerWorker:
     crawled_urls: set
     max_depth: int
     retries = 2
+    number_of_workers = 150
 
     def __init__(self, logger) -> None:
         self.results = []
@@ -30,7 +31,7 @@ class WebCrawlerWorker:
         crawler_tasks = []
         self.max_depth = max_depth
         await self.crawling_queue.put((main_url, 1))
-        for _ in range(150):
+        for _ in range(self.number_of_workers):
             task = asyncio.create_task(self._wroker())
             crawler_tasks.append(task)
 
